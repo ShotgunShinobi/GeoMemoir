@@ -1,0 +1,31 @@
+# Android / IntelliJ
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Kotlin
+*.stacktrace
+*.hprof
+
+# Project specific excludes
+/app/build/
+/build/
+
+# AI / Documentation Excludes
+implementation_plan.md
+LocalMapper.md
+.aiexclude
+.cursorrules
+*.log

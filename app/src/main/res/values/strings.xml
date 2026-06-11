@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">GeoMemoir</string>
+    <string name="title_map">Map</string>
+    <string name="title_places">Places</string>
+    <string name="title_categories">Categories</string>
+    <string name="title_offline_maps">Offline Maps</string>
+    <string name="title_select_region">Select Region</string>
+    <string name="title_add_place">Add Place</string>
+    <string name="title_edit_place">Edit Place</string>
+    <string name="title_place_detail">Place Details</string>
+</resources>
