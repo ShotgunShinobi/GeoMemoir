@@ -42,6 +42,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -71,6 +72,7 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
@@ -258,19 +260,33 @@ fun MapLibreView(
     val mapView = remember { MapView(context) }
     var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
 
+    // Manage MapView Lifecycle
+    DisposableEffect(lifecycleOwner) {
+        val observer = MapLifecycleObserver(mapView)
+        lifecycleOwner.lifecycle.addObserver(observer)
+        // mapView.onCreate(null) // Not strictly required if handled by observer, but good practice
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     AndroidView(
         factory = { mapView },
         modifier = modifier
     )
 
-    // Initialize Map
+    // Initialize Map Instance and Style
     LaunchedEffect(mapView) {
         mapView.getMapAsync { map ->
             mapInstance = map
             map.setStyle(Style.Builder().fromUri(MapConfig.STYLE_URL)) { style ->
-                setupPlacesLayer(map, style, places, context)
-                // World view if no location
-                map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(20.0, 0.0), 1.5))
+                android.util.Log.d("MapScreen", "Style loaded. Initial setup.")
+                setupPlacesLayer(map, style, places)
+                
+                // Initial world view if not moved
+                if (map.cameraPosition.zoom < 2.0) {
+                    map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(20.0, 0.0), 1.5))
+                }
             }
             
             map.addOnMapLongClickListener { latLng ->
@@ -292,15 +308,13 @@ fun MapLibreView(
         }
     }
 
-    // Update markers when places change
     LaunchedEffect(places, mapInstance) {
         val map = mapInstance ?: return@LaunchedEffect
-        android.util.Log.d("MapScreen", "LaunchedEffect triggered for ${places.size} places")
         map.getStyle { style ->
-            if (style.isFullyLoaded) {
-                setupPlacesLayer(map, style, places, context)
-                updatePlacesSource(style, places)
-            }
+            val center = map.cameraPosition.target
+            android.util.Log.d("MapScreen", "Syncing ${places.size} places. Center: ${center?.latitude}, ${center?.longitude}")
+            setupPlacesLayer(map, style, places)
+            updatePlacesSource(style, places)
         }
     }
 
@@ -310,17 +324,12 @@ fun MapLibreView(
             mapInstance?.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, MapConfig.DEFAULT_ZOOM))
         }
     }
-
-    // Forward Lifecycle events
-    LaunchedEffect(lifecycleOwner) {
-        val observer = MapLifecycleObserver(mapView)
-        lifecycleOwner.lifecycle.addObserver(observer)
-    }
 }
 
 class MapLifecycleObserver(private val mapView: MapView) : LifecycleEventObserver {
     override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {
         when (event) {
+            Lifecycle.Event.ON_CREATE -> mapView.onCreate(null)
             Lifecycle.Event.ON_START -> mapView.onStart()
             Lifecycle.Event.ON_RESUME -> mapView.onResume()
             Lifecycle.Event.ON_PAUSE -> mapView.onPause()
@@ -331,36 +340,27 @@ class MapLifecycleObserver(private val mapView: MapView) : LifecycleEventObserve
     }
 }
 
-fun setupPlacesLayer(map: MapLibreMap, style: Style, places: List<PlaceWithCategory>, context: Context) {
-    if (style.getSource(MapConfig.PLACES_SOURCE_ID) != null) return
+fun setupPlacesLayer(map: MapLibreMap, style: Style, places: List<PlaceWithCategory>) {
+    if (style.getSource(MapConfig.PLACES_SOURCE_ID) != null) {
+        updatePlacesSource(style, places)
+        return
+    }
 
     val source = GeoJsonSource(MapConfig.PLACES_SOURCE_ID)
     style.addSource(source)
 
-    val markerBitmap = vectorToBitmap(context, R.drawable.ic_place_marker)
-    if (markerBitmap != null) {
-        style.addImage("place-marker", markerBitmap)
-    }
-
-    val layer = SymbolLayer(MapConfig.PLACES_LAYER_ID, MapConfig.PLACES_SOURCE_ID).withProperties(
-        PropertyFactory.iconImage("place-marker"),
-        PropertyFactory.iconAllowOverlap(true),
-        PropertyFactory.iconIgnorePlacement(true),
-        PropertyFactory.iconSize(1.5f),
-        PropertyFactory.iconAnchor("bottom"),
-        PropertyFactory.textField(Expression.get("name")),
-        PropertyFactory.textSize(14f), // Increased size
-        PropertyFactory.textColor(android.graphics.Color.RED),
-        PropertyFactory.textHaloColor(android.graphics.Color.WHITE),
-        PropertyFactory.textHaloWidth(2f),
-        PropertyFactory.textAnchor("top"),
-        PropertyFactory.textOffset(arrayOf(0f, 0.5f)),
-        PropertyFactory.textAllowOverlap(true), // Force text to show
-        PropertyFactory.textIgnorePlacement(true) // Force text to show
+    // Colored Badge Layer (Just Circles, no text)
+    val circleLayer = CircleLayer(MapConfig.PLACES_LAYER_ID, MapConfig.PLACES_SOURCE_ID).withProperties(
+        PropertyFactory.circleRadius(10f),
+        PropertyFactory.circleColor(Expression.get("color")),
+        PropertyFactory.circleStrokeColor(android.graphics.Color.WHITE),
+        PropertyFactory.circleStrokeWidth(2f),
+        PropertyFactory.circleOpacity(1.0f),
+        PropertyFactory.circleStrokeOpacity(1.0f),
+        PropertyFactory.circleSortKey(100f)
     )
-    style.addLayer(layer)
+    style.addLayer(circleLayer)
     
-    // Update data immediately after layer is created
     updatePlacesSource(style, places)
 }
 
@@ -370,16 +370,19 @@ private fun buildFeatureCollection(places: List<PlaceWithCategory>): FeatureColl
         feature.addStringProperty("id", item.place.id.toString())
         feature.addStringProperty("name", item.place.name)
         feature.addNumberProperty("rating", item.place.rating ?: 0)
-        feature.addStringProperty("color", item.category?.colorHex ?: "#607D8B")
+        // Set color: Category color if exists, else Default Grey (#9E9E9E)
+        val color = item.category?.colorHex ?: "#9E9E9E"
+        feature.addStringProperty("color", color)
         feature
     }
     return FeatureCollection.fromFeatures(features)
 }
 
 fun updatePlacesSource(style: Style, places: List<PlaceWithCategory>) {
-    android.util.Log.d("MapScreen", "Updating places source with ${places.size} places")
+    val collection = buildFeatureCollection(places)
+    android.util.Log.d("MapScreen", "Updating GeoJSON source. Size: ${places.size}")
     (style.getSource(MapConfig.PLACES_SOURCE_ID) as? GeoJsonSource)
-        ?.setGeoJson(buildFeatureCollection(places))
+        ?.setGeoJson(collection)
 }
 
 private fun vectorToBitmap(context: Context, drawableId: Int): Bitmap? {
