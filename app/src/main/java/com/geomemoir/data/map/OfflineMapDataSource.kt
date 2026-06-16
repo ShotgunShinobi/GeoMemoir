@@ -8,6 +8,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.conflate
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.offline.OfflineManager
 import org.maplibre.android.offline.OfflineRegion as MapLibreRegion
@@ -33,27 +34,16 @@ class OfflineMapDataSource @Inject constructor(
                     return
                 }
 
-                mlRegion.setObserver(object : MapLibreRegion.OfflineRegionObserver {
-                    override fun onStatusChanged(status: OfflineRegionStatus) {
-                        trySend(DownloadProgress(
-                            regionId = region.id,
-                            completedTiles = status.completedResourceCount,
-                            totalTiles = status.requiredResourceCount,
-                            completedBytes = status.completedResourceSize,
-                            isComplete = status.isComplete,
-                            maplibreRegionId = maplibreId
-                        ))
-                        if (status.isComplete) channel.close()
+                val observer = createObserver(region.id, maplibreId, region.name)
+                mlRegion.setObserver(observer)
+                
+                // Get initial status immediately
+                mlRegion.getStatus(object : MapLibreRegion.OfflineRegionStatusCallback {
+                    override fun onStatus(status: OfflineRegionStatus?) {
+                        status?.let { observer.onStatusChanged(it) }
                     }
-
-                    override fun onError(error: OfflineRegionError) {
-                        trySend(DownloadProgress(region.id, 0, 0, 0, false, maplibreId, error.message))
-                        channel.close()
-                    }
-
-                    override fun mapboxTileCountLimitExceeded(limit: Long) {
-                        trySend(DownloadProgress(region.id, 0, 0, 0, false, maplibreId, "Tile count limit exceeded"))
-                        channel.close()
+                    override fun onError(error: String?) {
+                        trySend(DownloadProgress(region.id, 0, 0, 0, false, maplibreId, error ?: "Unknown error"))
                     }
                 })
             }
@@ -64,6 +54,45 @@ class OfflineMapDataSource @Inject constructor(
             }
         })
         awaitClose { }
+    }.conflate()
+
+    private fun kotlinx.coroutines.channels.ProducerScope<DownloadProgress>.createObserver(
+        regionId: Long,
+        maplibreId: Long,
+        regionName: String
+    ) = object : MapLibreRegion.OfflineRegionObserver {
+        override fun onStatusChanged(status: OfflineRegionStatus) {
+            val isActuallyComplete = status.isComplete || 
+                (status.requiredResourceCount > 0 && status.completedResourceCount >= status.requiredResourceCount)
+            
+            val progress = DownloadProgress(
+                regionId      = regionId,
+                completedTiles = status.completedResourceCount,
+                totalTiles    = status.requiredResourceCount,
+                completedBytes = status.completedResourceSize,
+                isComplete    = isActuallyComplete,
+                maplibreRegionId = maplibreId
+            )
+            
+            trySend(progress)
+
+            if (isActuallyComplete) {
+                Log.d("OfflineMapDataSource", "Download complete for region: $regionName")
+                channel.close()
+            }
+        }
+
+        override fun onError(error: OfflineRegionError) {
+            Log.e("OfflineMapDataSource", "Region observer error for $regionName: ${error.message}")
+            trySend(DownloadProgress(regionId, 0, 0, 0, false, maplibreId, error.message))
+            channel.close()
+        }
+
+        override fun mapboxTileCountLimitExceeded(limit: Long) {
+            Log.e("OfflineMapDataSource", "Tile count limit exceeded for $regionName: $limit")
+            trySend(DownloadProgress(regionId, 0, 0, 0, false, maplibreId, "Tile count limit exceeded"))
+            channel.close()
+        }
     }
 
     fun downloadRegion(region: DomainRegion): Flow<DownloadProgress> = callbackFlow {
@@ -83,49 +112,25 @@ class OfflineMapDataSource @Inject constructor(
         offlineManager.createOfflineRegion(definition, metadata,
             object : OfflineManager.CreateOfflineRegionCallback {
                 override fun onCreate(mlRegion: MapLibreRegion) {
-                    Log.d("OfflineMapDataSource", "Region created: ${mlRegion.id}")
                     val maplibreId = mlRegion.id
-                    mlRegion.setObserver(object : MapLibreRegion.OfflineRegionObserver {
-                        override fun onStatusChanged(status: OfflineRegionStatus) {
-                            Log.d("OfflineMapDataSource", "Status changed: ${status.completedResourceCount}/${status.requiredResourceCount}")
-                            trySend(DownloadProgress(
-                                regionId      = region.id,
-                                completedTiles = status.completedResourceCount,
-                                totalTiles    = status.requiredResourceCount,
-                                completedBytes = status.completedResourceSize,
-                                isComplete    = status.isComplete,
-                                maplibreRegionId = maplibreId
-                            ))
-                            if (status.isComplete) {
-                                Log.d("OfflineMapDataSource", "Download complete for region: ${region.name}")
-                                channel.close()
-                            }
+                    Log.d("OfflineMapDataSource", "Region created: $maplibreId for ${region.name}")
+                    
+                    val observer = createObserver(region.id, maplibreId, region.name)
+                    mlRegion.setObserver(observer)
+                    mlRegion.setDownloadState(MapLibreRegion.STATE_ACTIVE)
+                    
+                    // Fetch initial status to jump-start the progress (get total tiles count)
+                    mlRegion.getStatus(object : MapLibreRegion.OfflineRegionStatusCallback {
+                        override fun onStatus(status: OfflineRegionStatus?) {
+                            status?.let { observer.onStatusChanged(it) }
                         }
-                        override fun onError(error: OfflineRegionError) {
-                            Log.e("OfflineMapDataSource", "Region observer error: ${error.message}")
-                            trySend(DownloadProgress(
-                                regionId = region.id, 0, 0, 0,
-                                isComplete = false,
-                                maplibreRegionId = maplibreId,
-                                errorMessage = error.message
-                            ))
-                            channel.close()
-                        }
-                        override fun mapboxTileCountLimitExceeded(limit: Long) {
-                            Log.e("OfflineMapDataSource", "Tile count limit exceeded: $limit")
-                            trySend(DownloadProgress(
-                                regionId = region.id, 0, 0, 0,
-                                isComplete = false,
-                                maplibreRegionId = maplibreId,
-                                errorMessage = "Tile count limit exceeded ($limit tiles max)"
-                            ))
-                            channel.close()
+                        override fun onError(error: String?) {
+                            Log.e("OfflineMapDataSource", "Initial status error: $error")
                         }
                     })
-                    mlRegion.setDownloadState(MapLibreRegion.STATE_ACTIVE)
                 }
                 override fun onError(error: String) {
-                    Log.e("OfflineMapDataSource", "Create region error: $error")
+                    Log.e("OfflineMapDataSource", "Create region error for ${region.name}: $error")
                     trySend(DownloadProgress(
                         regionId = region.id,
                         completedTiles = 0,
@@ -139,9 +144,9 @@ class OfflineMapDataSource @Inject constructor(
             }
         )
         awaitClose { 
-            Log.d("OfflineMapDataSource", "Flow collection stopped for: ${region.name}. Background download continues.")
+            Log.d("OfflineMapDataSource", "Flow stopped for: ${region.name}")
         }
-    }
+    }.conflate()
 
     fun pauseDownload(maplibreRegionId: Long) {
         offlineManager.listOfflineRegions(object : OfflineManager.ListOfflineRegionsCallback {

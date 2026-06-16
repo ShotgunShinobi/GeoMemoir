@@ -140,28 +140,37 @@ fun OfflineRegionItem(
 
             if (region.status == DownloadStatus.DOWNLOADING || progress != null) {
                 val percentage = progress?.percentage ?: 0
-                val progressVal = (progress?.completedTiles?.toFloat() ?: 0f) / (progress?.totalTiles?.toFloat() ?: 1f)
+                val totalTiles = progress?.totalTiles ?: 0L
+                val progressVal = if (totalTiles > 0) {
+                    (progress?.completedTiles?.toFloat() ?: 0f) / totalTiles.toFloat()
+                } else 0f
                 
                 Column {
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            text = "Downloading Tiles...",
+                            text = if (totalTiles == 0L) "Initializing..." else "Downloading Tiles...",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.secondary,
                             modifier = Modifier.weight(1f)
                         )
-                        Text(
-                            text = "$percentage%",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
+                        if (totalTiles > 0) {
+                            Text(
+                                text = "$percentage%",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.height(6.dp))
-                    LinearProgressIndicator(
-                        progress = { progressVal },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    if (totalTiles == 0L) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) // Indeterminate
+                    } else {
+                        LinearProgressIndicator(
+                            progress = { progressVal },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             } else {
                 Row(

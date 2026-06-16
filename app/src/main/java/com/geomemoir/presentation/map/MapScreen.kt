@@ -3,7 +3,6 @@ package com.geomemoir.presentation.map
 import android.Manifest
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.core.content.ContextCompat
@@ -91,8 +90,6 @@ fun MapScreen(
     val categories by viewModel.categories.collectAsState()
     val activeCategoryId by viewModel.activeCategoryId.collectAsState()
     val pendingLocation by viewModel.pendingLocation.collectAsState()
-    val userLocation by viewModel.userLocation.collectAsState()
-    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -142,7 +139,6 @@ fun MapScreen(
             MapLibreView(
                 modifier = Modifier.fillMaxSize(),
                 places = places,
-                userLocation = userLocation,
                 cameraEvents = viewModel.cameraEvents,
                 onMarkerTap = { placeId ->
                     navController.navigate(Screen.PlaceDetail.createRoute(placeId))
@@ -250,7 +246,6 @@ fun MapScreen(
 fun MapLibreView(
     modifier: Modifier = Modifier,
     places: List<PlaceWithCategory>,
-    userLocation: LatLng?,
     cameraEvents: kotlinx.coroutines.flow.SharedFlow<LatLng>,
     onMarkerTap: (Long) -> Unit,
     onMapLongPress: (LatLng) -> Unit
@@ -281,7 +276,7 @@ fun MapLibreView(
             mapInstance = map
             map.setStyle(Style.Builder().fromUri(MapConfig.STYLE_URL)) { style ->
                 android.util.Log.d("MapScreen", "Style loaded. Initial setup.")
-                setupPlacesLayer(map, style, places)
+                setupPlacesLayer(style, places)
                 
                 // Initial world view if not moved
                 if (map.cameraPosition.zoom < 2.0) {
@@ -313,7 +308,7 @@ fun MapLibreView(
         map.getStyle { style ->
             val center = map.cameraPosition.target
             android.util.Log.d("MapScreen", "Syncing ${places.size} places. Center: ${center?.latitude}, ${center?.longitude}")
-            setupPlacesLayer(map, style, places)
+            setupPlacesLayer(style, places)
             updatePlacesSource(style, places)
         }
     }
@@ -340,7 +335,7 @@ class MapLifecycleObserver(private val mapView: MapView) : LifecycleEventObserve
     }
 }
 
-fun setupPlacesLayer(map: MapLibreMap, style: Style, places: List<PlaceWithCategory>) {
+fun setupPlacesLayer(style: Style, places: List<PlaceWithCategory>) {
     if (style.getSource(MapConfig.PLACES_SOURCE_ID) != null) {
         updatePlacesSource(style, places)
         return
@@ -356,8 +351,7 @@ fun setupPlacesLayer(map: MapLibreMap, style: Style, places: List<PlaceWithCateg
         PropertyFactory.circleStrokeColor(android.graphics.Color.WHITE),
         PropertyFactory.circleStrokeWidth(2f),
         PropertyFactory.circleOpacity(1.0f),
-        PropertyFactory.circleStrokeOpacity(1.0f),
-        PropertyFactory.circleSortKey(100f)
+        PropertyFactory.circleStrokeOpacity(1.0f)
     )
     style.addLayer(circleLayer)
     
@@ -385,15 +379,3 @@ fun updatePlacesSource(style: Style, places: List<PlaceWithCategory>) {
         ?.setGeoJson(collection)
 }
 
-private fun vectorToBitmap(context: Context, drawableId: Int): Bitmap? {
-    val drawable = ContextCompat.getDrawable(context, drawableId) ?: return null
-    val bitmap = Bitmap.createBitmap(
-        drawable.intrinsicWidth,
-        drawable.intrinsicHeight,
-        Bitmap.Config.ARGB_8888
-    )
-    val canvas = Canvas(bitmap)
-    drawable.setBounds(0, 0, canvas.width, canvas.height)
-    drawable.draw(canvas)
-    return bitmap
-}

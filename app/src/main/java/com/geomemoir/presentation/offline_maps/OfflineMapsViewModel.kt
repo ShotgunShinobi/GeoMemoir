@@ -5,10 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.geomemoir.domain.entity.BoundingBox
 import com.geomemoir.domain.entity.DownloadProgress
 import com.geomemoir.domain.entity.OfflineRegion
+import com.geomemoir.domain.repository.OfflineMapRepository
 import com.geomemoir.domain.usecase.offlinemap.DeleteRegionUseCase
 import com.geomemoir.domain.usecase.offlinemap.DownloadRegionUseCase
 import com.geomemoir.domain.usecase.offlinemap.GetOfflineRegionsUseCase
-import com.geomemoir.domain.repository.OfflineMapRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,7 +21,7 @@ class OfflineMapsViewModel @Inject constructor(
     private val getRegionsUseCase: GetOfflineRegionsUseCase,
     private val downloadRegionUseCase: DownloadRegionUseCase,
     private val deleteRegionUseCase: DeleteRegionUseCase,
-    private val repository: OfflineMapRepository
+    repository: OfflineMapRepository
 ) : ViewModel() {
 
     val regions: StateFlow<List<OfflineRegion>> =

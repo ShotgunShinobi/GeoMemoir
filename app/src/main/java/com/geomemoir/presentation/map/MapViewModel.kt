@@ -21,8 +21,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class MapViewModel @Inject constructor(
-    private val getPlacesUseCase: GetPlacesUseCase,
-    private val getCategoriesUseCase: GetCategoriesUseCase,
+    getPlacesUseCase: GetPlacesUseCase,
+    getCategoriesUseCase: GetCategoriesUseCase,
     private val locationDataSource: LocationDataSource
 ) : ViewModel() {
 
@@ -60,11 +60,19 @@ class MapViewModel @Inject constructor(
     fun fetchCurrentLocation() {
         viewModelScope.launch {
             try {
-                val loc = locationDataSource.getCurrentLocation()
-                if (loc != null) {
-                    _userLocation.value = loc
-                    _pendingLocation.value = loc
-                    _cameraEvents.emit(loc)
+                // Try for up to 3 times with a delay if location is not immediately available
+                // (e.g. after toggling GPS)
+                var loc: LatLng? = null
+                repeat(3) {
+                    loc = locationDataSource.getCurrentLocation()
+                    if (loc != null) return@repeat
+                    kotlinx.coroutines.delay(1000)
+                }
+
+                loc?.let {
+                    _userLocation.value = it
+                    _pendingLocation.value = it
+                    _cameraEvents.emit(it)
                 }
             } catch (e: SecurityException) {
                 // Permission not granted
