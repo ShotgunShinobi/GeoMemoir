@@ -31,60 +31,6 @@ The project is structured according to **Clean Architecture** and **MVVM (Model-
 1. **Domain Layer (Pure Kotlin)**: Contains core business data rules. It has zero dependencies on Android frameworks or libraries, making use cases extremely testable.
 2. **Data Layer**: Responsible for local persistence and hardware sensor queries. Maps domain repository definitions to concrete Room queries, GPS sensors, and MapLibre caches.
 3. **Presentation Layer**: Material 3 UI screens built entirely in Jetpack Compose, driven by lifecycle-aware state-holders (ViewModels).
-
----
-
-## 2. Project Directory Structure
-
-The codebase is organized cleanly to maintain isolation of concerns:
-
-```
-LocalMapper/
-├── app/
-│   ├── build.gradle.kts
-│   └── src/main/
-│       ├── AndroidManifest.xml
-│       ├── java/com/geomemoir/
-│       │   ├── GeoMemoirApp.kt              # Hilt Application hook
-│       │   ├── MainActivity.kt              # Single-Activity entry
-│       │   │
-│       │   ├── domain/
-│       │   │   ├── entity/                  # Business entities (Place, Category, BoundingBox)
-│       │   │   ├── repository/              # Repository interfaces
-│       │   │   └── usecase/                 # Isolated use case classes (CRUD, downloads)
-│       │   │
-│       │   ├── data/
-│       │   │   ├── db/
-│       │   │   │   ├── AppDatabase.kt       # Room Database
-│       │   │   │   ├── dao/                 # SQLite query definitions
-│       │   │   │   ├── entity/              # Database schema tables
-│       │   │   │   └── mapper/              # Domain-to-entity converter utilities
-│       │   │   ├── location/
-│       │   │   │   └── LocationDataSource.kt# Location client flow
-│       │   │   ├── map/
-│       │   │   │   └── OfflineMapDataSource.kt # MapLibre offline tile manager
-│       │   │   └── repository/
-│       │   │       └── RepositoryImpls      # Concrete data resolvers
-│       │   │
-│       │   ├── presentation/
-│       │   │   ├── navigation/
-│       │   │   │   └── AppNavGraph.kt       # Screen route configs
-│       │   │   ├── map/                     # Map display screen & VM
-│       │   │   ├── place/                   # Add/Edit forms, Place details & VM
-│       │   │   ├── places_list/             # List & text search layouts & VM
-│       │   │   ├── category/                # Category badges & swatch configs
-│       │   │   └── offline_maps/            # Regional downloaders, progress selectors
-│       │   │
-│       │   └── di/
-│       │       ├── DatabaseModule.kt        # Room DAO providers
-│       │       └── RepositoryModule.kt      # Repository Hilt binds
-│       │
-│       └── res/
-│           ├── drawable/                    # Map vector icons
-│           └── values/                      # Themes, strings, colors
-└── build.gradle.kts
-```
-
 ---
 
 ## 3. Database Schema
@@ -174,28 +120,8 @@ fun estimateTileCount(minLat: Double, maxLat: Double, minLng: Double, maxLng: Do
 }
 ```
 
----
-
-## 5. Development & Compilation Instructions
-
 ### Prerequisites
 * **Android Studio**: Jellyfish (2024.1+) or newer.
 * **JDK**: Version 17.
 * **SDK Levels**: Compile SDK `35`, Target SDK `35`, Min SDK `31`.
 
-### Build & Run
-1. Open Android Studio and select **File -> Open**.
-2. Select the directory: `d:\Projetcs\LocalMapper`.
-3. Allow Gradle to sync and build project wrappers.
-4. Connect an Android device (API level 31+) or start an Emulator.
-5. Click the **Run** button or execute in the terminal:
-   ```bash
-   ./gradlew installDebug
-   ```
-
-### Running Unit Tests
-Execute the local unit tests (validation rules and mock behaviors) via Gradle:
-```bash
-./gradlew testDebugUnitTest
-```
-Test results can be viewed in `app/build/reports/tests/testDebugUnitTest/index.html`.
