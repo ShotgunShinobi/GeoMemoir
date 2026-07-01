@@ -6,7 +6,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Map
@@ -53,8 +52,7 @@ fun MainAppScreen() {
     val bottomNavItems = listOf(
         Triple(Screen.Map.route, "Map", Icons.Default.Map),
         Triple(Screen.PlacesList.route, "Places", Icons.Default.List),
-        Triple(Screen.Categories.route, "Categories", Icons.Default.Label),
-        Triple(Screen.OfflineMaps.route, "Offline", Icons.Default.Folder)
+        Triple(Screen.Categories.route, "Categories", Icons.Default.Label)
     )
 
     // Only show bottom navigation on root level tabs

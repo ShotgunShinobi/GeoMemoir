@@ -1,10 +1,8 @@
 package com.geomemoir.di
 
 import com.geomemoir.data.repository.CategoryRepositoryImpl
-import com.geomemoir.data.repository.OfflineMapRepositoryImpl
 import com.geomemoir.data.repository.PlaceRepositoryImpl
 import com.geomemoir.domain.repository.CategoryRepository
-import com.geomemoir.domain.repository.OfflineMapRepository
 import com.geomemoir.domain.repository.PlaceRepository
 import dagger.Binds
 import dagger.Module
@@ -20,7 +18,4 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindCategoryRepository(impl: CategoryRepositoryImpl): CategoryRepository
-
-    @Binds
-    abstract fun bindOfflineMapRepository(impl: OfflineMapRepositoryImpl): OfflineMapRepository
 }

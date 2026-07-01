@@ -25,7 +25,4 @@ object DatabaseModule {
 
     @Provides
     fun provideCategoryDao(db: AppDatabase) = db.categoryDao()
-
-    @Provides
-    fun provideOfflineRegionDao(db: AppDatabase) = db.offlineRegionDao()
 }

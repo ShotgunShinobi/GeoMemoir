@@ -8,8 +8,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.geomemoir.presentation.category.CategoryScreen
 import com.geomemoir.presentation.map.MapScreen
-import com.geomemoir.presentation.offline_maps.OfflineMapsScreen
-import com.geomemoir.presentation.offline_maps.SelectRegionScreen
 import com.geomemoir.presentation.place.AddEditPlaceScreen
 import com.geomemoir.presentation.place.PlaceDetailScreen
 import com.geomemoir.presentation.places_list.PlacesListScreen
@@ -25,8 +23,6 @@ sealed class Screen(val route: String) {
             "add_edit_place?lat=${lat}&lng=${lng}&placeId=${placeId ?: -1L}"
     }
     object Categories : Screen("categories")
-    object OfflineMaps : Screen("offline_maps")
-    object SelectRegion : Screen("select_region")
 }
 
 @Composable
@@ -58,12 +54,6 @@ fun AppNavGraph(navController: NavHostController) {
         }
         composable(Screen.Categories.route) {
             CategoryScreen(navController)
-        }
-        composable(Screen.OfflineMaps.route) {
-            OfflineMapsScreen(navController)
-        }
-        composable(Screen.SelectRegion.route) {
-            SelectRegionScreen(navController)
         }
     }
 }
